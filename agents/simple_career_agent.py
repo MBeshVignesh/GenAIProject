@@ -11,6 +11,10 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv('aws_credentials.env')
 
 
 class SimpleCareerAgent:

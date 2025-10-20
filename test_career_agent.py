@@ -24,7 +24,7 @@ async def test_career_agent():
         print("- AWS_DEFAULT_REGION (optional, defaults to us-east-1)")
         print("\nThe system will use fallback recommendations.\n")
     else:
-        print("✅ AWS credentials found and valid!")
+        print("SUCCESS: AWS credentials found and valid!")
 
     # Test cases
     test_cases = [
