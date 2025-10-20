@@ -53,7 +53,13 @@ async def test_career_agent():
         result = await agent.analyze(test_case['career_goal'], test_case['background'])
         print("CAREER RECOMMENDATIONS:")
         print("-" * 40)
-        print(result)
+        # Handle Unicode characters for Windows console
+        try:
+            print(result)
+        except UnicodeEncodeError:
+            # Replace problematic Unicode characters
+            safe_result = result.encode('ascii', 'replace').decode('ascii')
+            print(safe_result)
         print("-" * 40)
 
         if i < len(test_cases):

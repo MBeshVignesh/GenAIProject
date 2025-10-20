@@ -21,7 +21,7 @@ class SimpleCareerAgent:
     def __init__(self):
         """Initialize the career agent with AWS Bedrock client."""
         self.bedrock_client = None
-        self.model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"  # Claude 3.5 Sonnet
+        self.model_id = "anthropic.claude-3-sonnet-20240229-v1:0"  # Claude 3 Sonnet
         self._initialize_bedrock_client()
 
         # System prompt for career guidance
@@ -91,7 +91,7 @@ Please provide a comprehensive career guidance plan including:
 
 Format your response in a clear, actionable manner."""
 
-            # Prepare the message for Claude
+            # Prepare the message for Claude using Messages API
             messages = [
                 {
                     "role": "user",
@@ -104,7 +104,7 @@ Format your response in a clear, actionable manner."""
                 }
             ]
 
-            # Call Bedrock API
+            # Call Bedrock API with Messages API format
             response = self.bedrock_client.invoke_model(
                 modelId=self.model_id,
                 body=json.dumps({
@@ -123,11 +123,12 @@ Format your response in a clear, actionable manner."""
 
         except ClientError as e:
             error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            print(f"Error: {error_code} - {error_message}")
             if error_code == 'AccessDeniedException':
-                print(
-                    "Error: Access denied. Please check your AWS permissions for Bedrock.")
+                print("Please check your AWS permissions for Bedrock.")
             elif error_code == 'ValidationException':
-                print("Error: Invalid request parameters.")
+                print("Invalid request parameters. Check model ID and request format.")
             else:
                 print(f"AWS Bedrock error: {error_code}")
             return self._get_fallback_recommendation(career_goal)
