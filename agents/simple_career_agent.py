@@ -21,7 +21,7 @@ class SimpleCareerAgent:
     def __init__(self):
         """Initialize the career agent with AWS Bedrock client."""
         self.bedrock_client = None
-        self.model_id = "anthropic.claude-3-sonnet-20240229-v1:0"  # Claude 3 Sonnet
+        self.model_id = "us.anthropic.claude-3-5-sonnet-20240620-v1:0"  # Claude 3 Sonnet
         self._initialize_bedrock_client()
 
         # System prompt for career guidance
