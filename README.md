@@ -1,21 +1,21 @@
 # Career Path Recommender System
 
-A production-grade multi-agent system using the **Strands Framework** and **AWS Bedrock Claude Sonnet 4.5** to help UTD students make informed career decisions by connecting job market data, course catalog, and personalized recommendations.
+A production-grade multi-agent system using **AWS Bedrock Claude Sonnet 4.5** to help UTD students make informed career decisions by connecting course catalog data and personalized career recommendations.
 
 ## 🎯 Overview
 
-This system consists of three autonomous AI agents that work together to provide comprehensive career guidance:
+This system consists of two specialized AI agents that work together to provide comprehensive career guidance:
 
 ### 🧩 Agents
 
-1. **Job Market Agent** - Scrapes and analyzes job postings from LinkedIn, Indeed, and Glassdoor
-2. **Course Catalog Agent** - Analyzes UTD course catalog and maps courses to skills
-3. **Career Matching Agent** - Generates personalized recommendations and project suggestions
+1. **Career Agent** - Generates personalized career recommendations and project suggestions using Claude Sonnet 4.5
+2. **Course Catalog Agent** - Analyzes UTD course catalog with Knowledge Base integration for enhanced document retrieval
 
 ### 🚀 Features
 
-- **Real-time Job Market Analysis** - Scrapes job postings and identifies trending skills
-- **Course-Skill Mapping** - Maps UTD courses to career requirements
+- **Interactive Streamlit Interface** - User-friendly chat interface for career guidance
+- **Knowledge Base Integration** - Enhanced document retrieval with AWS Bedrock Knowledge Base
+- **Course-Skill Mapping** - Maps UTD courses to career requirements with document analysis
 - **Personalized Recommendations** - Generates tailored career paths and project suggestions
 - **AWS Bedrock Integration** - Uses Claude Sonnet 4.5 for intelligent analysis
 - **Modular Architecture** - Clean, extensible agent-based design
@@ -35,105 +35,107 @@ pip install -r requirements.txt
 
 3. **Set up AWS credentials**
 ```bash
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_REGION=us-east-1
+# Copy the credentials template
+cp aws_credentials.env.example aws_credentials.env
+
+# Edit aws_credentials.env with your credentials
+# Required: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+# Optional: INFERENCE_PROFILE_ARN_SONNET, BEDROCK_KB_ID for Knowledge Base
 ```
 
-4. **Configure Bedrock model (optional)**
+4. **Configure Knowledge Base (optional)**
 ```bash
-export BEDROCK_CLAUDE_SONNET_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+# Follow the knowledge_base_setup_guide.md for detailed setup
+# This enables enhanced document retrieval for the Course Catalog Agent
 ```
 
 ## 🚀 Usage
 
-### Independent Agent Usage
-
-Each agent can now run completely independently:
+### Streamlit Web Interface (Recommended)
 
 ```bash
-# Run Job Market Agent independently
-python run_job_market_agent.py
-
-# Run Course Catalog Agent independently  
-python run_course_catalog_agent.py
-
-# Run Career Matching Agent independently
-python run_career_matching_agent.py
+# Launch the interactive web interface
+streamlit run main.py
 ```
 
-### Orchestrated Usage
+This opens a web interface where you can:
+- Choose between Career Agent and Course Catalog Agent
+- Chat with the selected agent
+- Get personalized career guidance and course recommendations
+
+### Independent Agent Usage
+
+Each agent can run independently:
 
 ```bash
-# Run the main system with agent selection
-python main.py
+# Run Career Agent independently
+python agents/simple_career_agent.py
+
+# Run Course Catalog Agent independently  
+python agents/course_catalog_agent.py
 ```
 
 ### Programmatic Usage
 
 ```python
-from agents.job_market_agent import JobMarketAgent
+from agents.simple_career_agent import CareerAgent
 from agents.course_catalog_agent import CourseCatalogAgent
-from agents.career_matching_agent import CareerMatchingAgent
 import asyncio
 
-async def run_independent_agents():
-    # Job Market Agent
-    job_agent = JobMarketAgent()
-    job_result = await job_agent.run_independent_analysis("Data Scientist")
+async def run_agents():
+    # Career Agent
+    career_agent = CareerAgent()
+    career_result = await career_agent.analyze("I want to become a Data Scientist")
     
     # Course Catalog Agent
     course_agent = CourseCatalogAgent()
-    course_result = await course_agent.run_independent_analysis("Data Scientist")
+    course_result = await course_agent.analyze("What courses should I take for data science?")
     
-    # Career Matching Agent
-    career_agent = CareerMatchingAgent()
-    career_result = await career_agent.run_independent_analysis(
-        "What projects should I do for data science?",
-        "Data Scientist"
-    )
+    print("Career Guidance:", career_result)
+    print("Course Recommendations:", course_result)
 
-asyncio.run(run_independent_agents())
+asyncio.run(run_agents())
 ```
 
 ## 📊 Example Output
 
-```json
-{
-  "user_query": "for data science roles, what projects i have to do",
-  "career_goal": "Data Scientist",
-  "recommended_courses": [
-    "CS 6375 - Machine Learning",
-    "CS 6360 - Database Design",
-    "CS 6350 - Big Data Management and Analytics"
-  ],
-  "projects": [
-    "End-to-end ML pipeline on AWS",
-    "Model deployment with SageMaker",
-    "Real-time data processing with Spark"
-  ],
-  "frameworks_to_learn": [
-    "TensorFlow",
-    "PyTorch", 
-    "AWS SageMaker",
-    "Apache Spark"
-  ],
-  "portfolio_guidance": "Build 2-3 projects showing model training + deployment"
-}
+### Career Agent Response
+```
+Data Scientist Career Path:
+
+• Core Skills: Python/R, SQL, Statistics, Machine Learning, Data Visualization
+• Learning Path: 
+  - Python fundamentals and data manipulation (pandas, numpy)
+  - Statistics and probability
+  - Machine learning algorithms and frameworks (scikit-learn, TensorFlow)
+  - Data visualization (matplotlib, seaborn, Tableau)
+• Projects: Kaggle competitions, personal data analysis projects
+• Certifications: Google Data Analytics, AWS Machine Learning Specialty
+• Timeline: 6-12 months for entry-level positions
+```
+
+### Course Catalog Agent Response
+```
+CS 6375 - Machine Learning
+This course covers supervised and unsupervised learning algorithms, model evaluation, and practical applications using Python and scikit-learn.
+
+CS 6360 - Database Design  
+Focuses on relational database design, SQL optimization, and data modeling for large-scale applications.
+
+CS 6350 - Big Data Management and Analytics
+Covers distributed computing frameworks, data processing pipelines, and analytics on large datasets.
 ```
 
 ## 🏗️ Architecture
 
 ```
-main.py
+main.py                        # Streamlit web interface
 ├── agents/
-│   ├── base_agent.py          # Base StrandAgent class
-│   ├── job_market_agent.py    # Job market analysis
-│   ├── course_catalog_agent.py # Course catalog analysis
-│   └── career_matching_agent.py # Career recommendations
-├── utils/
-│   ├── config.py              # Configuration management
-│   └── logger.py              # Logging setup
+│   ├── simple_career_agent.py    # Career guidance agent
+│   └── course_catalog_agent.py   # Course catalog analysis with KB
+├── utils/                     # Utility functions
+├── aws_credentials.env         # AWS configuration
+├── knowledge_base_setup_guide.md # KB setup instructions
 └── requirements.txt           # Dependencies
 ```
 
@@ -141,58 +143,88 @@ main.py
 
 ### Environment Variables
 
+**Required:**
 - `AWS_ACCESS_KEY_ID` - AWS access key
 - `AWS_SECRET_ACCESS_KEY` - AWS secret key
-- `AWS_REGION` - AWS region (default: us-east-1)
-- `BEDROCK_CLAUDE_SONNET_MODEL_ID` - Claude model ID
-- `LOG_LEVEL` - Logging level (default: INFO)
-- `SCRAPING_DELAY` - Delay between requests (default: 1.0)
+- `AWS_REGION` - AWS region (default: us-east-2)
+
+**Optional (for Knowledge Base):**
+- `INFERENCE_PROFILE_ARN_SONNET` - Inference profile ARN for Claude Sonnet 4.5
+- `BEDROCK_KB_ID` - Knowledge Base ID for enhanced document retrieval
+- `KB_MAX_RESULTS` - Maximum retrieval results (default: 5)
+- `KB_SIMILARITY_THRESHOLD` - Similarity threshold for retrieval (default: 0.7)
 
 ### AWS Bedrock Setup
 
 1. Enable Claude Sonnet 4.5 in your AWS Bedrock console
 2. Ensure your AWS credentials have Bedrock access
-3. Configure the model ID in your environment
+3. For Knowledge Base integration, follow `knowledge_base_setup_guide.md`
+
+## 📚 Knowledge Base Integration
+
+The Course Catalog Agent supports AWS Bedrock Knowledge Base integration for enhanced document retrieval:
+
+### Features
+- **Document Ingestion** - Upload course catalogs, syllabi, and academic documents
+- **Semantic Search** - Find relevant courses using natural language queries
+- **Citation Support** - Responses include source document references
+- **Flexible Configuration** - Works with or without Knowledge Base
+
+### Setup
+1. Follow the detailed guide in `knowledge_base_setup_guide.md`
+2. Configure `BEDROCK_KB_ID` and `INFERENCE_PROFILE_ARN_SONNET` in your environment
+3. Upload your course documents to the Knowledge Base
+4. The agent automatically uses Knowledge Base when available
+
+### Benefits
+- More accurate course recommendations based on actual course content
+- Better understanding of prerequisites and course relationships
+- Enhanced context for complex academic queries
 
 ## 🤖 Agent Details
 
-### Job Market Agent
-- Scrapes job postings from multiple sources
-- Extracts skills, requirements, and salary data
-- Identifies trending technologies and demand patterns
+### Career Agent
+- Generates personalized career recommendations using Claude Sonnet 4.5
+- Provides actionable career guidance and project suggestions
+- Offers empathetic, practical career coaching
+- Creates learning roadmaps and skill development plans
 
 ### Course Catalog Agent
-- Analyzes UTD course descriptions and prerequisites
-- Maps courses to skills and competencies
-- Identifies learning paths and dependencies
-
-### Career Matching Agent
-- Coordinates with other agents
-- Generates personalized recommendations
-- Creates learning roadmaps and project suggestions
+- Analyzes UTD course descriptions with Knowledge Base integration
+- Maps courses to skills and competencies using document retrieval
+- Provides detailed course information and prerequisites
+- Supports both direct Claude invocation and Knowledge Base retrieval
 
 ## 📈 Workflow
 
-1. **User Query** → Input career goal and specific question
-2. **Job Market Analysis** → Scrape and analyze job postings
-3. **Course Analysis** → Map courses to career requirements
-4. **Career Matching** → Generate personalized recommendations
-5. **Output** → Comprehensive career guidance with actionable steps
+1. **User Query** → Input career goal or course question via Streamlit interface
+2. **Agent Selection** → Choose between Career Agent or Course Catalog Agent
+3. **Analysis** → Agent processes query using Claude Sonnet 4.5
+4. **Knowledge Retrieval** → Course Catalog Agent optionally uses Knowledge Base for document retrieval
+5. **Response** → Generate personalized recommendations and guidance
 
 ## 🔍 Example Queries
 
-- "What courses should I take for data science?"
+**Career Agent:**
+- "I want to become a Data Scientist - what should I do?"
 - "What projects should I build for machine learning roles?"
-- "How do I prepare for cloud engineering positions?"
-- "What skills are in demand for software engineering?"
+- "How do I transition from software engineering to AI/ML?"
+- "What skills are most important for cloud engineering?"
+
+**Course Catalog Agent:**
+- "What courses should I take for data science?"
+- "Tell me about CS 6375 Machine Learning"
+- "What are the prerequisites for CS 6360 Database Design?"
+- "Show me all the AI/ML related courses available"
 
 ## 🛡️ Security & Best Practices
 
-- AWS credentials stored as environment variables
-- Rate limiting for web scraping
-- Error handling and logging
+- AWS credentials stored in environment variables
+- Secure Knowledge Base integration with proper IAM permissions
+- Error handling and comprehensive logging
 - Modular, testable architecture
 - Clean separation of concerns
+- Streamlit session management for web interface
 
 ## 🚧 Development
 
@@ -208,9 +240,9 @@ flake8 .
 ```
 
 ### Adding New Agents
-1. Inherit from `BaseStrandAgent`
-2. Implement required abstract methods
-3. Add to orchestrator workflow
+1. Create new agent class with `analyze()` method
+2. Implement AWS Bedrock integration
+3. Add to Streamlit interface in `main.py`
 4. Update documentation
 
 ## 📝 License

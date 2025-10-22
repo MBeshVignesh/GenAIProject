@@ -1,45 +1,62 @@
 """
-Career Path Recommender System - Main Orchestrator
-A multi-agent system using Strands Framework and AWS Bedrock Claude Sonnet 4.5
+Career Path Recommender System - Simple Chat Interface
 """
 
 import asyncio
-import os
-from agents.simple_career_agent import SimpleCareerAgent
+import streamlit as st
+from agents.simple_career_agent import CareerAgent
+from agents.course_catalog_agent import CourseCatalogAgent
 
+# Page config
+st.set_page_config(page_title="Career Assistant", page_icon="💼")
 
-async def main():
-    print("=== Career Path Recommender System ===")
-    print("Powered by AWS Bedrock Claude 3.5 Sonnet\n")
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "agent" not in st.session_state:
+    st.session_state.agent = None
 
-    # Initialize agent
-    agent = SimpleCareerAgent()
+# Header
+st.title(" Your Career Assistant")
+st.caption("Ask me about your career or courses!")
 
-    # Check AWS credentials
-    if not agent.check_aws_credentials():
-        print("WARNING: AWS credentials not found or invalid.")
-        print("Please set the following environment variables:")
-        print("- AWS_ACCESS_KEY_ID")
-        print("- AWS_SECRET_ACCESS_KEY")
-        print("- AWS_DEFAULT_REGION (optional, defaults to us-east-1)")
-        print("\nThe system will use fallback recommendations.\n")
+# Agent selection
+agent_type = st.radio("Choose Agent:", ["Career Agent", "Course Agent"], horizontal=True)
 
-    # Get user input
-    goal = input("Enter your career goal: ").strip() or "Data Scientist"
-    background = input("Enter your background (optional): ").strip()
+# Initialize agent
+if st.session_state.agent is None or st.session_state.get('current_agent') != agent_type:
+    with st.spinner("Loading agent..."):
+        if agent_type == "Career Agent":
+            st.session_state.agent = CareerAgent()
+        else:
+            st.session_state.agent = CourseCatalogAgent()
+        st.session_state.current_agent = agent_type
 
-    print(f"\nAnalyzing career path for: {goal}")
-    if background:
-        print(f"Background: {background}")
-    print("\nGenerating recommendations...\n")
+# Display chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
 
-    # Get recommendations
-    result = await agent.analyze(goal, background)
-    print("=" * 60)
-    print("CAREER RECOMMENDATIONS")
-    print("=" * 60)
-    print(result)
-    print("=" * 60)
+# Chat input
+if prompt := st.chat_input("Ask me anything..."):
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    # Display user message
+    with st.chat_message("user"):
+        st.write(prompt)
+    
+    # Get response
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            try:
+                response = asyncio.run(st.session_state.agent.analyze(prompt))
+                st.write(response)
+                st.session_state.messages.append({"role": "assistant", "content": response})
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# Clear chat button
+if st.button("Clear Chat"):
+    st.session_state.messages = []
+    st.rerun()
