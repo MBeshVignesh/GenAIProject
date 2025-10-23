@@ -1,5 +1,8 @@
 # Career Path Recommender System - Requirements
-# Multi-agent system using Strands Framework and AWS Bedrock Claude Sonnet 4.5
+# Multi-agent system using AWS Bedrock Claude Sonnet 4.5
+
+# Web Interface
+streamlit>=1.28.0
 
 # AWS and Bedrock
 boto3>=1.34.0

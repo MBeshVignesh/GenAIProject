@@ -20,8 +20,14 @@ load_dotenv('aws_credentials.env')
 class CareerAgent:
     def __init__(self):
         """Initialize the career agent with AWS Bedrock client."""
-        self.bedrock_client = None
-        self.model_id = "us.anthropic.claude-3-5-sonnet-20240620-v1:0"  # Claude 3 Sonnet
+        self.bedrock_runtime = None
+        self.region = os.getenv("AWS_REGION", "us-east-2")  # keep consistent with where your profile/KB live
+        self.inference_profile_arn = os.getenv("INFERENCE_PROFILE_ARN_SONNET")  # REQUIRED for Sonnet
+        self.kb_id = os.getenv("BEDROCK_KB_ID")  # OPTIONAL: if set, we can do Retrieve&Generate (KB-backed)
+        self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+        self.max_tokens = int(os.getenv("LLM_MAX_TOKENS", "10000"))
+        self.kb_max_results = int(os.getenv("KB_MAX_RESULTS", "5"))
+        self.kb_similarity_threshold = float(os.getenv("KB_SIMILARITY_THRESHOLD", "0.7"))  # Claude 3 Sonnet
         self._initialize_bedrock_client()
 
         # System prompt for career guidance
@@ -32,34 +38,27 @@ class CareerAgent:
         """Initialize AWS Bedrock client with proper error handling."""
         try:
             # Initialize Bedrock client
-            self.bedrock_client = boto3.client(
-                service_name='bedrock-runtime',
-                region_name='us-east-1',  # Change to your preferred region
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-                # Optional, for temporary credentials
-                aws_session_token=os.getenv('AWS_SESSION_TOKEN')
-            )
+            self.bedrock_runtime = boto3.client(
+                "bedrock-runtime",
+                region_name=self.region,
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
+            ) 
             print("AWS Bedrock client initialized successfully")
         except NoCredentialsError:
             print("Error: AWS credentials not found. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.")
-            self.bedrock_client = None
+            self.bedrock_runtime = None
         except Exception as e:
             print(f"Error initializing Bedrock client: {str(e)}")
-            self.bedrock_client = None
+            self.bedrock_runtime = None
 
     async def analyze(self, career_goal: str) -> str:
-        """
-        Analyze career goal and provide personalized recommendations using AWS Bedrock.
-        Returns:
-            Personalized career recommendations
-        """
 
         try:
             # Create user prompt
-            user_prompt = f"""{career_goal}
-            Tasks:
-            1) Infer the user's Career Goal from their words (make a good-faith inference even if implicit).
+            user_prompt = f"""
+            1) Understand the user's Career Goal from their words (make a good-faith).
             2) If the user explicitly requests a specific structure, tone, or format (e.g., JSON, table, specific headings), follow it exactly.
             3) **Scope rule:** If the user requests only a subset (e.g., “only projects”, “just skills”, “give me a 3-month plan only”), output only that subset and nothing else.
             Guidelines:
@@ -71,35 +70,42 @@ class CareerAgent:
             - Offer one “small next step” and a lightweight alternative path.
             - Keep empathy brief and specific (e.g., “Balancing work and study is hard—let’s keep first steps under 4 hrs/week.”), then return to action."""
 
+            composed_prompt = f"{self.system_prompt}\n\nUser message:\n{career_goal}\n\n{user_prompt}"
             # Prepare the message for Claude using Messages API
             messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"{self.system_prompt}\n\n{user_prompt}"
-                        }
-                    ]
-                }
-            ]
-
-            # Call Bedrock API with Messages API format
-            response = self.bedrock_client.invoke_model(
-                modelId=self.model_id,
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": composed_prompt}
+                        ],
+                    }
+                ]
+            response = self.bedrock_runtime.invoke_model(
+                modelId="arn:aws:bedrock:us-east-2:197496953075:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                contentType="application/json",
+                accept="application/json",
                 body=json.dumps({
                     "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 4000,
-                    "temperature": 0.7,
+                    "max_tokens": self.max_tokens,
+                    "temperature": self.temperature,
                     "messages": messages
-                })
+                }),
             )
 
-            # Parse response
-            response_body = json.loads(response['body'].read())
-            recommendation = response_body['content'][0]['text']
-            print("+++++++++++++++++ Successfully got response from Bedrock +++++++++++++++++")
+            # Parse standard Bedrock response shape
+            body = response.get("body")
+            if hasattr(body, "read"):
+                body = body.read()
+            response_body = json.loads(body)
+            recommendation = response_body["content"][0]["text"]
+            print("++++ Direct Sonnet invoke succeeded ++++")
             return recommendation
+
+            # Parse response
+            # response_body = json.loads(response['body'].read())
+            # recommendation = response_body['content'][0]['text']
+            # print("+++++++++++++++++ Successfully got response from Bedrock +++++++++++++++++")
+            # return recommendation
 
         except ClientError as e:
             error_code = e.response['Error']['Code']

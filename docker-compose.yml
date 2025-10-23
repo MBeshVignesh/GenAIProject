@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  career-app:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      - AWS_REGION=${AWS_REGION}
+      - INFERENCE_PROFILE_ARN_SONNET=${INFERENCE_PROFILE_ARN_SONNET}
+      - BEDROCK_KB_ID=${BEDROCK_KB_ID}
+      - KB_MAX_RESULTS=${KB_MAX_RESULTS}
+      - KB_SIMILARITY_THRESHOLD=${KB_SIMILARITY_THRESHOLD}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS}
+    volumes:
+      - ./aws_credentials.env:/app/aws_credentials.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
