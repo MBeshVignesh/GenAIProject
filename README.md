@@ -1,19 +1,19 @@
 # Career Path Recommender System
 
-A production-grade multi-agent system using **AWS Bedrock Claude Sonnet 4.5** to help UTD students make informed career decisions by connecting course catalog data and personalized career recommendations.
+A compact multi-agent project that uses AWS Bedrock (Claude Sonnet 4.5) to help students and learners get career guidance and course recommendations by combining model inference with an optional Knowledge Base.
 
 ## 🎯 Overview
 
-This system consists of two specialized AI agents that work together to provide comprehensive career guidance:
+This repository contains two agents and a small Streamlit chat UI that let you query career guidance and course recommendations.
 
 ### 🧩 Agents
 
-1. **Career Agent** - Generates personalized career recommendations and project suggestions using Claude Sonnet 4.5
-2. **Course Catalog Agent** - Analyzes UTD course catalog with Knowledge Base integration for enhanced document retrieval
+1. Career Agent (`agents/simple_career_agent.py`) – Generates personalized career recommendations. Loads environment from `aws_credentials.env` and will attempt to call Bedrock directly; Bedrock credentials improve results but an inference profile is not strictly required for the class itself.
+2. Course Catalog Agent (`agents/course_catalog_agent.py`) – Analyzes course catalog documents and optionally uses an AWS Bedrock Knowledge Base for grounded retrieval-and-generate responses. This agent requires `INFERENCE_PROFILE_ARN_SONNET` to be set and will raise if missing.
 
 ### 🚀 Features
 
-- **Interactive Streamlit Interface** - User-friendly chat interface for career guidance
+- **Interactive Streamlit Interface** - User-friendly chat interface for career guidance (implemented in `main.py`)
 - **Knowledge Base Integration** - Enhanced document retrieval with AWS Bedrock Knowledge Base
 - **Course-Skill Mapping** - Maps UTD courses to career requirements with document analysis
 - **Personalized Recommendations** - Generates tailored career paths and project suggestions
@@ -22,10 +22,10 @@ This system consists of two specialized AI agents that work together to provide 
 
 ## 🛠️ Installation
 
-1. **Clone the repository**
+1. Clone the repository
 ```bash
 git clone <repository-url>
-cd career-path-recommender
+cd GenAIProject
 ```
 
 2. **Install dependencies**
@@ -33,15 +33,19 @@ cd career-path-recommender
 pip install -r requirements.txt
 ```
 
-3. **Set up AWS credentials**
-```bash
-# Copy the credentials template
-cp aws_credentials.env.example aws_credentials.env
+3. Set up AWS credentials
 
-# Edit aws_credentials.env with your credentials
-# Required: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
-# Optional: INFERENCE_PROFILE_ARN_SONNET, BEDROCK_KB_ID for Knowledge Base
-```
+This project loads environment variables from `aws_credentials.env` via python-dotenv. You can create that file manually or follow the helper guide in `aws_credentials_setup.md`.
+
+Required environment variables:
+- AWS_ACCESS_KEY_ID
+- AWS_SECRET_ACCESS_KEY
+- AWS_REGION (e.g., us-east-2)
+
+Optional (for Bedrock / Knowledge Base):
+- INFERENCE_PROFILE_ARN_SONNET (required by `CourseCatalogAgent`)
+- BEDROCK_KB_ID (if you want KB-backed retrieval)
+- KB_MAX_RESULTS, KB_SIMILARITY_THRESHOLD, LLM_TEMPERATURE, LLM_MAX_TOKENS
 
 4. **Configure Knowledge Base (optional)**
 ```bash
@@ -58,43 +62,37 @@ cp aws_credentials.env.example aws_credentials.env
 streamlit run main.py
 ```
 
-This opens a web interface where you can:
-- Choose between Career Agent and Course Catalog Agent
-- Chat with the selected agent
-- Get personalized career guidance and course recommendations
+The UI loads either the Career Agent or Course Catalog Agent (selectable). Chat messages are persisted in the Streamlit session while the app runs.
 
 ### Independent Agent Usage
 
-Each agent can run independently:
+- Course Catalog Agent: `agents/course_catalog_agent.py` contains a small CLI entrypoint and can be run directly:
 
 ```bash
-# Run Career Agent independently
-python agents/simple_career_agent.py
-
-# Run Course Catalog Agent independently  
 python agents/course_catalog_agent.py
 ```
+
+- Career Agent: `agents/simple_career_agent.py` is intended to be used programmatically (import the `CareerAgent` class). Example programmatic usage is shown below.
 
 ### Programmatic Usage
 
 ```python
+import asyncio
 from agents.simple_career_agent import CareerAgent
 from agents.course_catalog_agent import CourseCatalogAgent
-import asyncio
 
-async def run_agents():
-    # Career Agent
-    career_agent = CareerAgent()
-    career_result = await career_agent.analyze("I want to become a Data Scientist")
-    
-    # Course Catalog Agent
-    course_agent = CourseCatalogAgent()
-    course_result = await course_agent.analyze("What courses should I take for data science?")
-    
-    print("Career Guidance:", career_result)
-    print("Course Recommendations:", course_result)
+async def run():
+  career_agent = CareerAgent()
+  career_result = await career_agent.analyze("I want to become a Data Scientist")
 
-asyncio.run(run_agents())
+  # CourseCatalogAgent requires INFERENCE_PROFILE_ARN_SONNET in env
+  course_agent = CourseCatalogAgent()
+  course_result = await course_agent.analyze("What courses should I take for data science?")
+
+  print('Career Guidance:\n', career_result)
+  print('Course Recommendations:\n', course_result)
+
+asyncio.run(run())
 ```
 
 ## 📊 Example Output
@@ -126,33 +124,29 @@ CS 6350 - Big Data Management and Analytics
 Covers distributed computing frameworks, data processing pipelines, and analytics on large datasets.
 ```
 
-## 🏗️ Architecture
+## 🏗️ Project layout
 
 ```
-main.py                        # Streamlit web interface
-├── agents/
-│   ├── simple_career_agent.py    # Career guidance agent
-│   └── course_catalog_agent.py   # Course catalog analysis with KB
-├── utils/                     # Utility functions
-├── aws_credentials.env         # AWS configuration
-├── knowledge_base_setup_guide.md # KB setup instructions
-└── requirements.txt           # Dependencies
+main.py                        # Streamlit web UI (chat)
+agents/                        # Agent implementations
+  ├─ simple_career_agent.py    # Career guidance (programmatic use)
+  └─ course_catalog_agent.py   # Course catalog agent (KB-backed, has CLI entrypoint)
+aws_credentials.env             # Environment file (loaded by python-dotenv)
+aws_credentials_setup.md        # Instructions for creating credentials file
+knowledge_base_setup_guide.md   # Knowledge Base setup guide
+requirements.txt                # Python dependencies
+docker-compose.yml, Dockerfile  # Optional containerization / deploy helpers
 ```
 
-## 🔧 Configuration
 
-### Environment Variables
+### Configuration
 
-**Required:**
-- `AWS_ACCESS_KEY_ID` - AWS access key
-- `AWS_SECRET_ACCESS_KEY` - AWS secret key
-- `AWS_REGION` - AWS region (default: us-east-2)
+Environment variables are loaded from `aws_credentials.env` (via python-dotenv). The key settings are:
 
-**Optional (for Knowledge Base):**
-- `INFERENCE_PROFILE_ARN_SONNET` - Inference profile ARN for Claude Sonnet 4.5
-- `BEDROCK_KB_ID` - Knowledge Base ID for enhanced document retrieval
-- `KB_MAX_RESULTS` - Maximum retrieval results (default: 5)
-- `KB_SIMILARITY_THRESHOLD` - Similarity threshold for retrieval (default: 0.7)
+- AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION (required)
+- INFERENCE_PROFILE_ARN_SONNET (required by `CourseCatalogAgent`)
+- BEDROCK_KB_ID (optional; set to enable KB-backed retrieval)
+- KB_MAX_RESULTS, KB_SIMILARITY_THRESHOLD, LLM_TEMPERATURE, LLM_MAX_TOKENS
 
 ### AWS Bedrock Setup
 
@@ -162,38 +156,17 @@ main.py                        # Streamlit web interface
 
 ## 📚 Knowledge Base Integration
 
-The Course Catalog Agent supports AWS Bedrock Knowledge Base integration for enhanced document retrieval:
-
-### Features
-- **Document Ingestion** - Upload course catalogs, syllabi, and academic documents
-- **Semantic Search** - Find relevant courses using natural language queries
-- **Citation Support** - Responses include source document references
-- **Flexible Configuration** - Works with or without Knowledge Base
-
-### Setup
-1. Follow the detailed guide in `knowledge_base_setup_guide.md`
-2. Configure `BEDROCK_KB_ID` and `INFERENCE_PROFILE_ARN_SONNET` in your environment
-3. Upload your course documents to the Knowledge Base
-4. The agent automatically uses Knowledge Base when available
-
-### Benefits
-- More accurate course recommendations based on actual course content
-- Better understanding of prerequisites and course relationships
-- Enhanced context for complex academic queries
+`CourseCatalogAgent` supports retrieving documents from an AWS Bedrock Knowledge Base (Retrieve & Generate). When `BEDROCK_KB_ID` is set the agent will return grounded responses and append detected sources. See `knowledge_base_setup_guide.md` for step-by-step setup.
 
 ## 🤖 Agent Details
 
 ### Career Agent
 - Generates personalized career recommendations using Claude Sonnet 4.5
-- Provides actionable career guidance and project suggestions
-- Offers empathetic, practical career coaching
-- Creates learning roadmaps and skill development plans
+- Intended for programmatic usage (import the class and call `analyze()`)
 
 ### Course Catalog Agent
-- Analyzes UTD course descriptions with Knowledge Base integration
-- Maps courses to skills and competencies using document retrieval
-- Provides detailed course information and prerequisites
-- Supports both direct Claude invocation and Knowledge Base retrieval
+- Analyzes course descriptions and can perform KB-backed retrieval-and-generate (grounded answers + citations)
+- Requires `INFERENCE_PROFILE_ARN_SONNET` to be set for direct Sonnet invocations
 
 ## 📈 Workflow
 
@@ -229,11 +202,14 @@ The Course Catalog Agent supports AWS Bedrock Knowledge Base integration for enh
 ## 🚧 Development
 
 ### Running Tests
+If there are tests present, run:
+
 ```bash
-pytest tests/
+pytest
 ```
 
 ### Code Formatting
+
 ```bash
 black .
 flake8 .
