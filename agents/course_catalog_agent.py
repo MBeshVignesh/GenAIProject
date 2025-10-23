@@ -13,7 +13,7 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError, BotoCoreError
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+
 load_dotenv('aws_credentials.env')
 
 
@@ -34,14 +34,15 @@ class CourseCatalogAgent:
                 "Missing INFERENCE_PROFILE_ARN_SONNET. Claude Sonnet 4.5 requires invoking via an inference profile."
             )
 
-        # System prompt for career guidance (empathetic + scope-aware)
+
         self.system_prompt = (
             """
-            You are a compassionate, practical course counselor.
-            Read and understand ALL provided documents as a human would (course codes, descriptions). Rely only on these docs—no outside facts.
-            From the docs, extract what the user needs: course names, course codes, brief descriptions, prerequisites/corequisites, credits, typical term/modality, key topics, and clear course outcomes (skills/competencies). 
-            Include any explicitly mentioned course and closely related ones when relevant. If something isn’t in the docs, say it isn’t available.
-            Be warm and concise. Give only what the user asks for (e.g., “descriptions only,” “only codes,” “only outcomes”) and follow any requested format exactly. Otherwise keep it short, factual, and helpful. If nothing relevant is found, say so plainly.
+            You are a compassionate, sympathetic friend and a knowledgeable career counselor.
+            Read and understand all provided documents thoroughly—just as a human would. You know everything that’s in them, but you never hallucinate or invent information.
+            Based on these documents, offer thoughtful, realistic, and supportive career guidance.
+            Interpret course details, programs, or qualifications from the files to help the user make informed decisions about learning paths, skills, and future opportunities.
+            If the needed information isn’t in the documents, try to answer in generic way.
+            Keep your tone empathetic, grounded, and helpful.
             """
         )
 
@@ -90,13 +91,15 @@ class CourseCatalogAgent:
 
         # Build the empathetic, scope-aware task block
         task_block = (
-            """Task:
-            From the provided documents, write the course details, descriptions relevant to the user’s query.
+            """
+            Task:
+            Using the provided documents, respond to the user’s query with whatever information is most relevant and useful.
+
             Rules:
-            - Each description: 1–2 sentences, clear and factual, paraphrased from the docs.
-            - If multiple courses apply, provide each description as its own short paragraph, separated by exactly one blank line.
-            - If the user mentions a specific course, include its description if present in the docs.
-            - If nothing relevant is found, reply exactly: No relevant description available.
+            Adapt your answer to the user’s specific request — include details, summaries, or explanations as needed.
+            Stay factual and rely only on the content in the documents.
+            Be concise but informative.
+            If multiple points apply, separate them clearly.
             """
             )
 
