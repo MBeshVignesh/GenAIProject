@@ -4,16 +4,18 @@ Career Path Recommender System - Simple Chat Interface
 
 import asyncio
 import streamlit as st
-from agents.simple_career_agent import analyze_career_goal, get_bedrock_client
+from agents.simple_career_agent import analyze_career_goal, get_bedrock_client, create_memory
 
 # Page config
 st.set_page_config(page_title="Your Personal AI Agent", page_icon="🤖")
 
-# Initialize session state
+# Initialize session state - each user gets their own isolated memory
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "bedrock_client" not in st.session_state:
     st.session_state.bedrock_client = get_bedrock_client()
+if "memory" not in st.session_state:
+    st.session_state.memory = create_memory()  # Each session gets its own memory instance
 
 # Header
 st.title("Your Personal AI Agent")
@@ -39,7 +41,8 @@ if prompt := st.chat_input("Ask me anything..."):
             try:
                 response = analyze_career_goal(
                     st.session_state.bedrock_client,
-                    prompt
+                    prompt,
+                    memory=st.session_state.memory  # Pass session-specific memory
                 )
                 st.write(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
@@ -49,4 +52,5 @@ if prompt := st.chat_input("Ask me anything..."):
 # Clear chat button
 if st.button("Clear Chat"):
     st.session_state.messages = []
+    st.session_state.memory = create_memory()  # Reset memory for new conversation
     st.rerun()
