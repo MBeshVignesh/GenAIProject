@@ -22,7 +22,7 @@ class CourseCatalogAgent:
     def __init__(self):
         """Initialize the career agent with AWS Bedrock clients (runtime + optional agent-runtime for KB)."""
         self.region = os.getenv("AWS_REGION", "us-east-2")  # keep consistent with where your profile/KB live
-        self.inference_profile_arn = os.getenv("INFERENCE_PROFILE_ARN_SONNET")  # REQUIRED for Sonnet
+        self.inference_profile_arn = os.getenv("INFERENCE_PROFILE_ARN")  # REQUIRED for Sonnet
         self.kb_id = os.getenv("BEDROCK_KB_ID")  # OPTIONAL: if set, we can do Retrieve&Generate (KB-backed)
         self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.2"))
         self.max_tokens = int(os.getenv("LLM_MAX_TOKENS", "10000"))

@@ -4,33 +4,20 @@ Career Path Recommender System - Simple Chat Interface
 
 import asyncio
 import streamlit as st
-from agents.simple_career_agent import CareerAgent
-from agents.course_catalog_agent import CourseCatalogAgent
+from agents.simple_career_agent import analyze_career_goal, get_bedrock_client
 
 # Page config
-st.set_page_config(page_title="Career Assistant", page_icon="💼")
+st.set_page_config(page_title="Your Personal AI Agent", page_icon="🤖")
 
 # Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "agent" not in st.session_state:
-    st.session_state.agent = None
+if "bedrock_client" not in st.session_state:
+    st.session_state.bedrock_client = get_bedrock_client()
 
 # Header
-st.title(" Your Career Assistant")
-st.caption("Ask me about your career or courses!")
-
-# Agent selection
-agent_type = st.radio("Choose Agent:", ["Career Agent", "Course Agent"], horizontal=True)
-
-# Initialize agent
-if st.session_state.agent is None or st.session_state.get('current_agent') != agent_type:
-    with st.spinner("Loading agent..."):
-        if agent_type == "Career Agent":
-            st.session_state.agent = CareerAgent()
-        else:
-            st.session_state.agent = CourseCatalogAgent()
-        st.session_state.current_agent = agent_type
+st.title("Your Personal AI Agent")
+st.caption("Mentor, friend, and expert—here to help you with life, work, interviews, learning, or any problem.")
 
 # Display chat history
 for message in st.session_state.messages:
@@ -50,7 +37,10 @@ if prompt := st.chat_input("Ask me anything..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                response = asyncio.run(st.session_state.agent.analyze(prompt))
+                response = analyze_career_goal(
+                    st.session_state.bedrock_client,
+                    prompt
+                )
                 st.write(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
             except Exception as e:
