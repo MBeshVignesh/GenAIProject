@@ -4,7 +4,6 @@ Career Path Recommender System - Simple Chat Interface
 
 import asyncio
 import streamlit as st
-from agents.simple_career_agent import CareerAgent
 from agents.course_catalog_agent import CourseCatalogAgent
 
 # Page config
@@ -17,20 +16,13 @@ if "agent" not in st.session_state:
     st.session_state.agent = None
 
 # Header
-st.title(" Your Career Assistant")
-st.caption("Ask me about your career or courses!")
-
-# Agent selection
-agent_type = st.radio("Choose Agent:", ["Career Agent", "Course Agent"], horizontal=True)
+st.title(" Your Assistant")
+st.caption("Let's talk about the cases!")
 
 # Initialize agent
-if st.session_state.agent is None or st.session_state.get('current_agent') != agent_type:
+if st.session_state.agent is None:
     with st.spinner("Loading agent..."):
-        if agent_type == "Career Agent":
-            st.session_state.agent = CareerAgent()
-        else:
-            st.session_state.agent = CourseCatalogAgent()
-        st.session_state.current_agent = agent_type
+        st.session_state.agent = CourseCatalogAgent()
 
 # Display chat history
 for message in st.session_state.messages:

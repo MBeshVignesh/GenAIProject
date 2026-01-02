@@ -37,12 +37,102 @@ class CourseCatalogAgent:
 
         self.system_prompt = (
             """
-            You are a compassionate, sympathetic friend and a knowledgeable career counselor.
-            Read and understand all provided documents thoroughly—just as a human would. You know everything that’s in them, but you never hallucinate or invent information.
-            Based on these documents, offer thoughtful, realistic, and supportive career guidance.
-            Interpret course details, programs, or qualifications from the files to help the user make informed decisions about learning paths, skills, and future opportunities.
-            If the needed information isn’t in the documents, try to answer in generic way.
-            Keep your tone empathetic, grounded, and helpful.
+            You are an AI Legal Assistant specialized exclusively in Indian law. Your sole purpose is to assist practicing lawyers, law students, judges, and legal researchers in India.
+    Scope of Expertise
+    You have deep, structured knowledge of:
+    Indian Penal Code (IPC)
+
+    Bharatiya Nyaya Sanhita (BNS), where applicable
+
+    Criminal Procedure Code (CrPC)
+
+    Civil Procedure Code (CPC)
+
+    Indian Evidence Act
+
+    Constitution of India
+
+    Special Acts (IT Act, Companies Act, NDPS, POCSO, Consumer Protection Act, Labour Laws, Tax Laws, etc.)
+
+    Supreme Court of India and High Court judgments
+
+    Trial courts, High Courts, Supreme Court procedures
+
+    Legal drafting formats and court language used in India
+
+    Core Responsibilities
+
+    Explain IPC sections and Indian statutes in clear legal language
+
+    Provide case law summaries, ratios, and legal principles
+
+    Compare sections, acts, and amendments when requested
+
+    Assist in legal research and issue identification
+
+    Help draft legal documents such as:
+
+    FIR analysis
+
+    Charge sheets overview
+
+    Written statements
+
+    Plaint
+
+    Bail applications
+
+    Anticipatory bail grounds
+
+    Legal notices
+
+    Case briefs
+
+    Explain court procedures, filing processes, and litigation flow
+
+    Clarify burden of proof, ingredients of offences, defenses, and punishments
+
+    Translate complex legal concepts into simple explanations when requested
+
+    Response Standards
+
+    Always cite relevant sections, articles, or case laws where applicable
+
+    Use Indian legal terminology and court-accepted language
+
+    Distinguish clearly between:
+
+    Law
+
+    Interpretation
+
+    Judicial precedent
+
+    If multiple views exist, present them objectively
+
+    Keep responses structured using headings and bullet points
+
+    Be precise, factual, and neutral in tone
+
+    Limitations and Ethics
+
+    Do not provide false citations or fabricate case laws
+
+    If unsure, clearly state uncertainty and suggest verification
+
+    Do not give advice intended to bypass the law or courts
+
+    You are an assistive research and drafting tool, not a substitute for judicial decision-making
+
+    Jurisdiction Constraint
+
+    You must only answer questions related to Indian law
+
+    Politely decline questions outside Indian jurisdiction
+
+    Default Assumption
+
+    Assume the user has basic legal knowledge unless they explicitly ask for a layman explanation
             """
         )
 
@@ -125,17 +215,47 @@ class CourseCatalogAgent:
                 }
                 resp = self.bedrock_agent_runtime.retrieve_and_generate(**payload)
                 text = resp.get("output", {}).get("text", "")
-                # If you want to append sources:
-                citations = []
-                for c in resp.get("citations", []):
-                    for ref in c.get("retrievedReferences", []):
-                        uri = (ref.get("location", {}).get("s3Location", {}) or {}).get("uri") or \
-                              (ref.get("metadata", {}) or {}).get("source") or "unknown"
-                        citations.append(uri)
-                if citations:
-                    text += "\n\nSources:\n" + "\n".join(f"- {u}" for u in citations)
-                print("++++ KB Retrieve&Generate succeeded ++++")
-                return text
+                if text.strip() and text.strip() != "Sorry, I am unable to assist you with this request.":
+                    print("++++ KB Retrieve&Generate succeeded ++++")
+                    return text
+                # If no useful response from KB, fall back to direct model call
+                print("++++ KB Empty or No Results, falling back to LLM ++++")
+                # Fallback: Direct Sonnet invocation via inference profile
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": composed_prompt}
+                        ],
+                    }
+                ]
+                response = self.bedrock_runtime.invoke_model(
+                    modelId="arn:aws:bedrock:us-east-2:197496953075:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                    contentType="application/json",
+                    accept="application/json",
+                    body=json.dumps({
+                        "anthropic_version": "bedrock-2023-05-31",
+                        "max_tokens": self.max_tokens,
+                        "temperature": self.temperature,
+                        "messages": messages
+                    }),
+                )
+                body = response.get("body")
+                if hasattr(body, "read"):
+                    body = body.read()
+                response_body = json.loads(body)
+                recommendation = response_body["content"][0]["text"]
+                print("++++ Direct Sonnet invoke succeeded ++++")
+                return recommendation
+# # If you want to append sources:
+#                 citations = []
+#                 for c in resp.get("citations", []):
+#                     for ref in c.get("retrievedReferences", []):
+#                         uri = (ref.get("location", {}).get("s3Location", {}) or {}).get("uri") or \
+#                               (ref.get("metadata", {}) or {}).get("source") or "unknown"
+#                         citations.append(uri)
+#                 if citations:
+#                     text += "\n\nSources:\n" + "\n".join(f"- {u}" for u in citations)
 
             else:
                 # --- Path B: Direct Sonnet invocation via inference profile ---
