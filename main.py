@@ -4,21 +4,51 @@ Career Path Recommender System - Simple Chat Interface
 
 import asyncio
 import streamlit as st
-from agents.simple_career_agent import CareerAgent
-from agents.course_catalog_agent import CourseCatalogAgent
+from agents.simple_career_agent import analyze_career_goal, get_bedrock_clients, create_memory
+from chat_history import (
+    save_chat_history, 
+    load_chat_history, 
+    create_new_session,
+    get_all_sessions,
+    delete_session,
+    update_session_title,
+    restore_memory_from_history
+)
 
 # Page config
 st.set_page_config(page_title="Career Assistant", page_icon="💼")
 
 # Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "agent" not in st.session_state:
-    st.session_state.agent = None
+if "current_session_id" not in st.session_state:
+    # Get all sessions and load most recent, or create new one
+    sessions = get_all_sessions()
+    if sessions:
+        # Load most recent session
+        most_recent = sessions[0]  # Already sorted by most recent
+        st.session_state.current_session_id = most_recent["id"]
+        saved_messages, saved_memory_messages = load_chat_history(most_recent["id"])
+        if saved_messages:
+            st.session_state.messages = saved_messages
+            if saved_memory_messages:
+                st.session_state.memory = restore_memory_from_history(saved_memory_messages, create_memory)
+            else:
+                st.session_state.memory = create_memory()
+        else:
+            st.session_state.messages = []
+            st.session_state.memory = create_memory()
+    else:
+        # Create a new session if none exists
+        st.session_state.current_session_id = create_new_session()
+        st.session_state.messages = []
+        st.session_state.memory = create_memory()
+    st.session_state.session_switched = False
+else:
+    st.session_state.session_switched = False
 
-# Header
-st.title(" Your Career Assistant")
-st.caption("Ask me about your career or courses!")
+if "bedrock_runtime" not in st.session_state or "bedrock_agent_runtime" not in st.session_state:
+    bedrock_runtime, bedrock_agent_runtime = get_bedrock_clients()
+    st.session_state.bedrock_runtime = bedrock_runtime
+    st.session_state.bedrock_agent_runtime = bedrock_agent_runtime
 
 # Agent selection
 agent_type = st.radio("Choose Agent:", ["Career Agent", "Course Agent"], horizontal=True)
@@ -50,7 +80,12 @@ if prompt := st.chat_input("Ask me anything..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                response = asyncio.run(st.session_state.agent.analyze(prompt))
+                response = analyze_career_goal(
+                    st.session_state.bedrock_runtime,
+                    st.session_state.bedrock_agent_runtime,
+                    prompt,
+                    memory=st.session_state.memory  # Pass session-specific memory
+                )
                 st.write(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
             except Exception as e:

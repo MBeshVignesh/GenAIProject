@@ -16,162 +16,360 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv('aws_credentials.env')
 
+SYSTEM_PROMPT = (
+    """
+You are an AI Legal Assistant specialized exclusively in Indian law. Your sole purpose is to assist practicing lawyers, law students, judges, and legal researchers in India.
 
-class CareerAgent:
-    def __init__(self):
-        """Initialize the career agent with AWS Bedrock client."""
-        self.bedrock_runtime = None
-        self.region = os.getenv("AWS_REGION", "us-east-2")  # keep consistent with where your profile/KB live
-        self.inference_profile_arn = os.getenv("INFERENCE_PROFILE_ARN_SONNET")  # REQUIRED for Sonnet
-        self.kb_id = os.getenv("BEDROCK_KB_ID")  # OPTIONAL: if set, we can do Retrieve&Generate (KB-backed)
-        self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.2"))
-        self.max_tokens = int(os.getenv("LLM_MAX_TOKENS", "10000"))
-        self.kb_max_results = int(os.getenv("KB_MAX_RESULTS", "5"))
-        self.kb_similarity_threshold = float(os.getenv("KB_SIMILARITY_THRESHOLD", "0.7"))  # Claude 3 Sonnet
-        self._initialize_bedrock_client()
+Scope of Expertise
 
-        # System prompt for career guidance
-        self.system_prompt = """You are an experienced, no-nonsense career coach. Be specific, actionable, and concise. Prefer bullet points over paragraphs.
-        When the user requests a specific output format or style, follow it exactly."""
+You have deep, structured knowledge of:
 
-    def _initialize_bedrock_client(self):
-        """Initialize AWS Bedrock client with proper error handling."""
-        try:
-            # Initialize Bedrock client
-            self.bedrock_runtime = boto3.client(
-                "bedrock-runtime",
-                region_name=self.region,
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
-            ) 
-            print("AWS Bedrock client initialized successfully")
-        except NoCredentialsError:
-            print("Error: AWS credentials not found. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.")
-            self.bedrock_runtime = None
-        except Exception as e:
-            print(f"Error initializing Bedrock client: {str(e)}")
-            self.bedrock_runtime = None
+Indian Penal Code (IPC)
 
-    async def analyze(self, career_goal: str) -> str:
+Bharatiya Nyaya Sanhita (BNS), where applicable
 
-        try:
-            # Create user prompt
-            user_prompt = f"""
-            1) Understand the user's Career Goal from their words (make a good-faith).
-            2) If the user explicitly requests a specific structure, tone, or format (e.g., JSON, table, specific headings), follow it exactly.
-            3) **Scope rule:** If the user requests only a subset (e.g., “only projects”, “just skills”, “give me a 3-month plan only”), output only that subset and nothing else.
-            Guidelines:
-            - Use the user’s domain/industry context if present.
-            - Name concrete tools (e.g., Pandas, SQL window functions, dbt, Airflow) instead of vague labels.
-            - Make bullets outcome-oriented (“Able to build X…”, “Can evaluate Y…”).
-            - Zero filler. If scope is restricted, return only what was requested.
-            If user shows anxiety or constraints (time, money, work/life):
-            - Offer one “small next step” and a lightweight alternative path.
-            - Keep empathy brief and specific (e.g., “Balancing work and study is hard—let’s keep first steps under 4 hrs/week.”), then return to action."""
+Criminal Procedure Code (CrPC)
 
-            composed_prompt = f"{self.system_prompt}\n\nUser message:\n{career_goal}\n\n{user_prompt}"
-            # Prepare the message for Claude using Messages API
-            messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": composed_prompt}
-                        ],
-                    }
-                ]
-            response = self.bedrock_runtime.invoke_model(
-                modelId="arn:aws:bedrock:us-east-2:197496953075:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0",
-                contentType="application/json",
-                accept="application/json",
-                body=json.dumps({
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": self.max_tokens,
-                    "temperature": self.temperature,
-                    "messages": messages
-                }),
-            )
+Civil Procedure Code (CPC)
 
-            # Parse standard Bedrock response shape
-            body = response.get("body")
-            if hasattr(body, "read"):
-                body = body.read()
-            response_body = json.loads(body)
-            recommendation = response_body["content"][0]["text"]
-            print("++++ Direct Sonnet invoke succeeded ++++")
-            return recommendation
+Indian Evidence Act
 
-            # Parse response
-            # response_body = json.loads(response['body'].read())
-            # recommendation = response_body['content'][0]['text']
-            # print("+++++++++++++++++ Successfully got response from Bedrock +++++++++++++++++")
-            # return recommendation
+Constitution of India
 
-        except ClientError as e:
-            error_code = e.response['Error']['Code']
-            error_message = e.response['Error']['Message']
-            print(f"Error: {error_code} - {error_message}")
-            if error_code == 'AccessDeniedException':
-                print("Please check your AWS permissions for Bedrock.")
-            elif error_code == 'ValidationException':
-                print("Invalid request parameters. Check model ID and request format.")
-            else:
-                print(f"AWS Bedrock error: {error_code}")
+Special Acts (IT Act, Companies Act, NDPS, POCSO, Consumer Protection Act, Labour Laws, Tax Laws, etc.)
 
-        except Exception as e:
-            print(f"Unexpected error: {str(e)}")
+Supreme Court of India and High Court judgments
 
-    # def _get_fallback_recommendation(self, career_goal: str) -> str:
-    #     """Provide fallback recommendations when Bedrock is unavailable."""
-    #     fallback_recs = {
-    #         "Data Scientist": """Data Scientist Career Path:
-    #         • Core Skills: Python/R, SQL, Statistics, Machine Learning, Data Visualization
-    #         • Learning Path: 
-    #         - Python fundamentals and data manipulation (pandas, numpy)
-    #         - Statistics and probability
-    #         - Machine learning algorithms and frameworks (scikit-learn, TensorFlow)
-    #         - Data visualization (matplotlib, seaborn, Tableau)
-    #         • Projects: Kaggle competitions, personal data analysis projects
-    #         • Certifications: Google Data Analytics, AWS Machine Learning Specialty
-    #         • Timeline: 6-12 months for entry-level positions""",
+Trial courts, High Courts, Supreme Court procedures
 
-    #                     "Software Engineer": """Software Engineer Career Path:
-    #         • Core Skills: Programming languages (Python, Java, JavaScript), Data Structures, Algorithms, Git, System Design
-    #         • Learning Path:
-    #         - Master one primary language deeply
-    #         - Learn data structures and algorithms
-    #         - Understand software development lifecycle
-    #         - Practice with version control (Git)
-    #         • Projects: Build web applications, contribute to open source, create a portfolio
-    #         • Certifications: AWS Certified Developer, Google Cloud Professional Developer
-    #         • Timeline: 6-18 months depending on prior experience""",
+Legal drafting formats and court language used in India
 
-    #                     "Cloud Engineer": """Cloud Engineer Career Path:
-    #         • Core Skills: AWS/Azure/GCP, Docker, Kubernetes, CI/CD, Infrastructure as Code
-    #         • Learning Path:
-    #         - Cloud platform fundamentals (AWS, Azure, or GCP)
-    #         - Containerization (Docker, Kubernetes)
-    #         - Infrastructure as Code (Terraform, CloudFormation)
-    #         - DevOps practices and CI/CD pipelines
-    #         • Projects: Deploy applications to cloud, set up monitoring, automate deployments
-    #         • Certifications: AWS Solutions Architect, Azure Administrator, Google Cloud Professional
-    #         • Timeline: 3-12 months depending on prior experience"""
-    #                 }
+Core Responsibilities
 
-    #         return fallback_recs.get(career_goal, f"""Career Guidance for {career_goal}:
-    #         • Research the specific skills and requirements for this role
-    #         • Identify relevant courses and certifications
-    #         • Build practical projects to demonstrate your skills
-    #         • Network with professionals in the field
-    #         • Consider internships or entry-level positions to gain experience
-    #         • Stay updated with industry trends and technologies""")
+Explain IPC sections and Indian statutes in clear legal language
 
-    def check_aws_credentials(self) -> bool:
-        """Check if AWS credentials are properly configured."""
-        try:
-            # Try to get caller identity to verify credentials
-            sts_client = boto3.client('sts')
-            sts_client.get_caller_identity()
-            return True
-        except:
-            return False
+Provide case law summaries, ratios, and legal principles
+
+Compare sections, acts, and amendments when requested
+
+Assist in legal research and issue identification
+
+Help draft legal documents such as:
+
+FIR analysis
+
+Charge sheets overview
+
+Written statements
+
+Plaint
+
+Bail applications
+
+Anticipatory bail grounds
+
+Legal notices
+
+Case briefs
+
+Explain court procedures, filing processes, and litigation flow
+
+Clarify burden of proof, ingredients of offences, defenses, and punishments
+
+Translate complex legal concepts into simple explanations when requested
+
+Response Standards
+
+Always cite relevant sections, articles, or case laws where applicable
+
+Use Indian legal terminology and court-accepted language
+
+Distinguish clearly between:
+
+Law
+
+Interpretation
+
+Judicial precedent
+
+If multiple views exist, present them objectively
+
+Keep responses structured using headings and bullet points
+
+Be precise, factual, and neutral in tone
+
+Limitations and Ethics
+
+Do not provide false citations or fabricate case laws
+
+If unsure, clearly state uncertainty and suggest verification
+
+Do not give advice intended to bypass the law or courts
+
+You are an assistive research and drafting tool, not a substitute for judicial decision-making
+
+Jurisdiction Constraint
+
+You must only answer questions related to Indian law
+
+Politely decline questions outside Indian jurisdiction
+
+Default Assumption
+
+Assume the user has basic legal knowledge unless they explicitly ask for a layman explanation
+"""
+)
+
+REGION = os.getenv("AWS_REGION", "us-east-2")
+MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "10000"))
+TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+MODEL_ID = os.getenv("INFERENCE_PROFILE_ARN", "arn:aws:bedrock:us-east-2:197496953075:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0")
+KB_ID = os.getenv("BEDROCK_KB_ID")
+KB_MAX_RESULTS = int(os.getenv("KB_MAX_RESULTS", "5"))
+
+def create_memory():
+    """
+    Create a new, isolated memory instance for each user session.
+    This ensures each Streamlit session has its own independent conversation memory.
+    """
+    return ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+
+def search_web(query: str, max_results: int = 5) -> str:
+    """
+    Search the web for current information using DuckDuckGo.
+    Returns formatted search results as a string.
+    """
+    if not WEB_SEARCH_AVAILABLE:
+        return ""
+    
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=max_results))
+            print("results** -- ",results)
+            if not results:
+                return ""
+            
+            search_summary = f"\n[Current Web Search Results for '{query}']:\n"
+            for i, result in enumerate(results, 1):
+                title = result.get('title', 'No title')
+                snippet = result.get('body', 'No description')
+                url = result.get('href', '')
+                search_summary += f"\n{i}. {title}\n   {snippet}\n   Source: {url}\n"
+            
+            return search_summary
+    except Exception as e:
+        print(f"Web search error: {str(e)}")
+        return ""
+
+
+def should_search_web(user_query: str) -> bool:
+    """
+    Determine if the query requires current/latest information that should be searched.
+    """
+    if not WEB_SEARCH_AVAILABLE:
+        return False
+    
+    # Keywords that suggest need for current information
+    current_info_keywords = [
+        # Time-related
+        "latest", "current", "today", "recent", "now", "2025", "2024", "2026",
+        "this year", "this month", "this week", "newest", "updated",
+        # Market & Career
+        "trends", "news", "update", "salary", "market", "demand", "supply",
+        "hiring", "jobs", "job market", "employment", "career outlook",
+        "industry outlook", "growth", "opportunities", "openings",
+        # Companies & Employers
+        "companies", "employers", "recruiters", "top companies", "best companies",
+        "hiring managers", "startups", "tech companies",
+        # Technology & Skills
+        "tech stack", "framework", "technology", "tools", "skills in demand",
+        "programming languages", "certification", "course", "program",
+        "training", "bootcamp", "education", "degree", "credentials",
+        # Salary & Compensation
+        "pay", "compensation", "wage", "income", "earnings", "benefits",
+        "perks", "bonus", "equity", "remote work", "work from home",
+        # Interview & Application
+        "interview questions", "interview process", "application", "resume tips",
+        "cover letter", "portfolio", "github", "linkedin",
+        # Industry-Specific
+        "ai", "machine learning", "data science", "software engineering",
+        "cloud", "devops", "cybersecurity", "blockchain", "web3",
+        # Location-Based
+        "remote", "hybrid", "work from home",
+        # Other Current Info Indicators
+        "what's", "what is", "how much", "how many", "where", "who is hiring",
+        "best practices", "recommended", "popular", "in-demand", "look", "more about"
+    ]
+    
+    query_lower = user_query.lower()
+    return any(keyword in query_lower for keyword in current_info_keywords)
+
+
+def get_bedrock_clients():
+    """
+    Returns (bedrock_runtime, bedrock_agent_runtime) clients for model and KB usage.
+    """
+    try:
+        bedrock_runtime = boto3.client(
+            "bedrock-runtime",
+            region_name=REGION,
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
+        )
+        bedrock_agent_runtime = boto3.client(
+            "bedrock-agent-runtime",
+            region_name=REGION,
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
+        )
+        return bedrock_runtime, bedrock_agent_runtime
+    except NoCredentialsError:
+        print("Error: AWS credentials not found. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.")
+    except Exception as e:
+        print(f"Error initializing Bedrock client: {str(e)}")
+    return None, None
+
+def get_bedrock_client():
+    """Legacy compatibility: return only the bedrock-runtime client."""
+    bedrock_runtime, _ = get_bedrock_clients()
+    return bedrock_runtime
+
+
+def analyze_career_goal(bedrock_runtime, bedrock_agent_runtime, career_goal: str, memory=None) -> str:
+    """
+    Enhanced: Try Knowledge Base first, fall back to model if KB unavailable or unhelpful.
+    """
+    if memory is None:
+        memory = create_memory()
+    memory_vars = memory.load_memory_variables({})
+    memory_messages = memory_vars.get("chat_history", [])
+    memory_context = ""
+    if memory_messages:
+        memory_context = "Chat History:\n"
+        for msg in memory_messages:
+            role = "user" if getattr(msg, "type", None) == "human" else "assistant"
+            memory_context += f"{role}: {msg.content}\n"
+    web_search_results = ""
+    if should_search_web(career_goal):
+        print(f"Searching web for current information about: {career_goal}")
+        web_search_results = search_web(career_goal, max_results=5)
+    user_prompt = f"""
+You are assisting the user as their mentor, friend, and expert—helping with life, work, interviews, learning, or any problem they bring up.
+
+Approach:
+- Ask clarifying questions if the request isn't clear—whether it's about career, personal life, learning, or anything else
+- Provide actionable advice but also offer encouragement, understanding, and emotional support when needed
+- If you give steps or points, wrap them in context so it's easy for the user to follow through or ask more
+- Do not give generic lists—adapt answers with empathy and insight, and always check if the user wants more depth or examples
+- Be patient and clear, especially if the user asks "explain like I'm five" or wants to understand deeply
+- Help the user feel more confident and supported—whether they're dealing with interviews, life decisions, learning challenges, relationship issues, or any other concern
+
+**WEB SEARCH / BROWSER ACCESS:**
+- **IMPORTANT**: You have real-time web search/browser capabilities. When web search results are provided below, they contain current, up-to-date information from the internet.
+- Always prioritize and use this fresh web data when available—it's more accurate than relying solely on training data, especially for:
+  - Current job market trends, salaries, hiring data
+  - Latest news, events, and developments
+  - Recent technical documentation, frameworks, tools
+  - Company information, stock prices, market data
+  - Current best practices, recommendations, reviews
+  - Any time-sensitive or evolving information
+- Incorporate web search results naturally into your response, cite sources when helpful, and explain how the current data relates to the user's question.
+
+Remember: You're not just a career agent. You're a comprehensive support system with web search capabilities, ready to help with anything the user needs using the most current information available.
+
+---
+
+Here is the user's current question or topic:
+"{career_goal}"
+{web_search_results}
+"""
+    composed_prompt = f"{SYSTEM_PROMPT}\n\n{memory_context}\nUser message:\n{career_goal}\n\n{user_prompt}"
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": composed_prompt}
+            ],
+        }
+    ]
+    try:
+        # --- Try Knowledge Base Retrieve&Generate if KB_ID exists ---
+        if KB_ID and bedrock_agent_runtime is not None:
+            payload = {
+                "input": {"text": composed_prompt},
+                "retrieveAndGenerateConfiguration": {
+                    "type": "KNOWLEDGE_BASE",
+                    "knowledgeBaseConfiguration": {
+                        "knowledgeBaseId": KB_ID,
+                        "modelArn": MODEL_ID,
+                        "retrievalConfiguration": {
+                            "vectorSearchConfiguration": {
+                                "numberOfResults": KB_MAX_RESULTS
+                            }
+                        }
+                    },
+                },
+            }
+            resp = bedrock_agent_runtime.retrieve_and_generate(**payload)
+            text = resp.get("output", {}).get("text", "")
+            print("text** -- ",text)
+            citations = []
+            for c in resp.get("citations", []):
+                for ref in c.get("retrievedReferences", []):
+                    uri = (ref.get("location", {}).get("s3Location", {}) or {}).get("uri") or \
+                          (ref.get("metadata", {}) or {}).get("source") or "unknown"
+                    citations.append(uri)
+            if text.strip() and text.strip() != "Sorry, I am unable to assist you with this request.":
+                if citations:
+                    text += "\n\nSources:\n" + "\n".join(f"- {u}" for u in citations)
+                print("++++ KB Retrieve&Generate succeeded ++++")
+                # Save context
+                memory.save_context({"input": career_goal}, {"output": text})
+                return text
+            print("++++ KB Empty or No Results, falling back to LLM ++++")
+        # --- Fallback: Direct LLM call ---
+        response = bedrock_runtime.invoke_model(
+            modelId=MODEL_ID,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": MAX_TOKENS,
+                "temperature": TEMPERATURE,
+                "messages": messages
+            }),
+        )
+        body = response.get("body")
+        if hasattr(body, "read"):
+            body = body.read()
+        response_body = json.loads(body)
+        recommendation = response_body["content"][0]["text"]
+        print("++++ Direct Sonnet invoke succeeded ++++")
+        # Save new user input and answer in memory
+        memory.save_context({"input": career_goal}, {"output": recommendation})
+        return recommendation
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        print(f"Error: {error_code} - {error_message}")
+        if error_code == 'AccessDeniedException':
+            print("Please check your AWS permissions for Bedrock.")
+        elif error_code == 'ValidationException':
+            print("Invalid request parameters. Check model ID and request format.")
+        else:
+            print(f"AWS Bedrock error: {error_code}")
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+    return ""
+
+
+def check_aws_credentials():
+    try:
+        sts_client = boto3.client('sts')
+        sts_client.get_caller_identity()
+        return True
+    except:
+        return False
