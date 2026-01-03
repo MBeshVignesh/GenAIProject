@@ -167,8 +167,8 @@ with st.sidebar:
                             st.rerun()
 
 # Main content area
-st.title("Your Personal AI Agent")
-st.caption("Mentor, friend, and expert—here to help you with life, work, interviews, learning, or any problem.")
+st.title("How can I help! ")
+st.caption("Let's do some research and discuss strategy")
 
 # Show current session info
 current_session_info = None
