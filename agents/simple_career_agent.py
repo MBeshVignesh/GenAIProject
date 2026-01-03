@@ -7,11 +7,43 @@ to provide comprehensive career guidance and project recommendations.
 import asyncio
 import json
 import os
-from typing import Dict, List, Any, Optional
-from datetime import datetime
-import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+import boto3
 from dotenv import load_dotenv
+from datetime import datetime
+
+# Web search functionality
+try:
+    from ddgs import DDGS
+    WEB_SEARCH_AVAILABLE = True
+except ImportError:
+    WEB_SEARCH_AVAILABLE = False
+    print("Warning: ddgs package not available. Web search will be disabled.")
+try:
+    from langchain.memory import ConversationBufferMemory  # preferred import
+except Exception:
+    # Minimal fallback so app still works without langchain.memory
+    class _Msg:
+        def __init__(self, msg_type: str, content: str):
+            self.type = msg_type
+            self.content = content
+
+    class ConversationBufferMemory:  # type: ignore
+        def __init__(self, memory_key: str = "chat_history", return_messages: bool = True):
+            self.memory_key = memory_key
+            self.return_messages = return_messages
+            self._messages = []  # list[_Msg]
+
+        def load_memory_variables(self, _: dict):
+            return {self.memory_key: list(self._messages)}
+
+        def save_context(self, inputs: dict, outputs: dict):
+            user_text = inputs.get("input", "")
+            if user_text:
+                self._messages.append(_Msg("human", user_text))
+            ai_text = outputs.get("output", "")
+            if ai_text:
+                self._messages.append(_Msg("ai", ai_text))
 
 # Load environment variables from .env file
 load_dotenv('aws_credentials.env')
