@@ -272,8 +272,15 @@ def get_bedrock_client():
 
 def analyze_career_goal(bedrock_runtime, bedrock_agent_runtime, career_goal: str, memory=None) -> str:
     """
-    Enhanced: Try Knowledge Base first, fall back to model if KB unavailable or unhelpful.
+    Two-step process:
+    1. First invokes Knowledge Base Retrieve&Generate (always, regardless of output)
+    2. Then invokes direct LLM with KB output + web search results + user query
     """
+    if bedrock_runtime is None:
+        error_msg = "Error: Bedrock Runtime client is not available. Please check your AWS credentials."
+        print(error_msg)
+        return error_msg
+    
     if memory is None:
         memory = create_memory()
     memory_vars = memory.load_memory_variables({})
@@ -284,11 +291,67 @@ def analyze_career_goal(bedrock_runtime, bedrock_agent_runtime, career_goal: str
         for msg in memory_messages:
             role = "user" if getattr(msg, "type", None) == "human" else "assistant"
             memory_context += f"{role}: {msg.content}\n"
+    
+    # Step 1: Get web search results
     web_search_results = ""
     if should_search_web(career_goal):
         print(f"Searching web for current information about: {career_goal}")
         web_search_results = search_web(career_goal, max_results=5)
-    user_prompt = f"""
+    
+    # Step 2: Invoke Knowledge Base Retrieve&Generate (always, even if KB_ID is not set)
+    kb_output = ""
+    kb_citations = []
+    
+    if KB_ID and bedrock_agent_runtime is not None:
+        try:
+            # Use just the user query for KB retrieval (better semantic search)
+            kb_query = career_goal
+            if memory_context:
+                kb_query = f"{memory_context}\n\nCurrent question: {career_goal}"
+            
+            payload = {
+                "input": {"text": kb_query},
+                "retrieveAndGenerateConfiguration": {
+                    "type": "KNOWLEDGE_BASE",
+                    "knowledgeBaseConfiguration": {
+                        "knowledgeBaseId": KB_ID,
+                        "modelArn": MODEL_ID,
+                        "retrievalConfiguration": {
+                            "vectorSearchConfiguration": {
+                                "numberOfResults": KB_MAX_RESULTS
+                            }
+                        }
+                    },
+                },
+            }
+            print(f"DEBUG: Step 1 - Querying KB with: {kb_query[:200]}...")
+            resp = bedrock_agent_runtime.retrieve_and_generate(**payload)
+            
+            kb_output = resp.get("output", {}).get("text", "")
+            print(f"DEBUG: KB returned text: {kb_output[:500]}")
+            
+            # Extract citations
+            for c in resp.get("citations", []):
+                for ref in c.get("retrievedReferences", []):
+                    uri = (ref.get("location", {}).get("s3Location", {}) or {}).get("uri") or \
+                          (ref.get("metadata", {}) or {}).get("source") or "unknown"
+                    kb_citations.append(uri)
+            
+            print(f"++++ KB Retrieve&Generate completed - Output: {'Present' if kb_output.strip() else 'Empty'}, Citations: {len(kb_citations)} ++++")
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            print(f"KB Error: {error_code} - {error_message}")
+            kb_output = f"[Knowledge Base Error: {error_code}]"
+        except Exception as e:
+            print(f"KB Unexpected error: {str(e)}")
+            kb_output = f"[Knowledge Base Error: {str(e)}]"
+    else:
+        print("++++ KB not configured or unavailable, skipping KB step ++++")
+    
+    # Step 3: Invoke direct LLM with KB output + web search + user query
+    try:
+        user_prompt = f"""
 You are assisting the user as their mentor, friend, and expert—helping with life, work, interviews, learning, or any problem they bring up.
 
 Approach:
@@ -298,6 +361,11 @@ Approach:
 - Do not give generic lists—adapt answers with empathy and insight, and always check if the user wants more depth or examples
 - Be patient and clear, especially if the user asks "explain like I'm five" or wants to understand deeply
 - Help the user feel more confident and supported—whether they're dealing with interviews, life decisions, learning challenges, relationship issues, or any other concern
+
+**KNOWLEDGE BASE INFORMATION:**
+- Below you will find information retrieved from the Knowledge Base (if available).
+- Use this information to provide accurate, document-backed answers.
+- Cite sources when referencing Knowledge Base content.
 
 **WEB SEARCH / BROWSER ACCESS:**
 - **IMPORTANT**: You have real-time web search/browser capabilities. When web search results are provided below, they contain current, up-to-date information from the internet.
@@ -316,53 +384,29 @@ Remember: You're not just a career agent. You're a comprehensive support system 
 
 Here is the user's current question or topic:
 "{career_goal}"
+
+{("=" * 80)}
+KNOWLEDGE BASE RESULTS:
+{("=" * 80)}
+{kb_output if kb_output.strip() else "No relevant information found in Knowledge Base."}
+{("=" * 80)}
+
 {web_search_results}
 """
-    composed_prompt = f"{SYSTEM_PROMPT}\n\n{memory_context}\nUser message:\n{career_goal}\n\n{user_prompt}"
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": composed_prompt}
-            ],
-        }
-    ]
-    try:
-        # --- Try Knowledge Base Retrieve&Generate if KB_ID exists ---
-        if KB_ID and bedrock_agent_runtime is not None:
-            payload = {
-                "input": {"text": composed_prompt},
-                "retrieveAndGenerateConfiguration": {
-                    "type": "KNOWLEDGE_BASE",
-                    "knowledgeBaseConfiguration": {
-                        "knowledgeBaseId": KB_ID,
-                        "modelArn": MODEL_ID,
-                        "retrievalConfiguration": {
-                            "vectorSearchConfiguration": {
-                                "numberOfResults": KB_MAX_RESULTS
-                            }
-                        }
-                    },
-                },
+        
+        # Compose final prompt with system prompt, memory, and user prompt
+        final_prompt = f"{SYSTEM_PROMPT}\n\n{memory_context}\n\n{user_prompt}"
+        
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": final_prompt}
+                ],
             }
-            resp = bedrock_agent_runtime.retrieve_and_generate(**payload)
-            text = resp.get("output", {}).get("text", "")
-            print("text** -- ",text)
-            citations = []
-            for c in resp.get("citations", []):
-                for ref in c.get("retrievedReferences", []):
-                    uri = (ref.get("location", {}).get("s3Location", {}) or {}).get("uri") or \
-                          (ref.get("metadata", {}) or {}).get("source") or "unknown"
-                    citations.append(uri)
-            if text.strip() and text.strip() != "Sorry, I am unable to assist you with this request.":
-                if citations:
-                    text += "\n\nSources:\n" + "\n".join(f"- {u}" for u in citations)
-                print("++++ KB Retrieve&Generate succeeded ++++")
-                # Save context
-                memory.save_context({"input": career_goal}, {"output": text})
-                return text
-            print("++++ KB Empty or No Results, falling back to LLM ++++")
-        # --- Fallback: Direct LLM call ---
+        ]
+        
+        print("DEBUG: Step 2 - Invoking direct LLM with KB output + web search...")
         response = bedrock_runtime.invoke_model(
             modelId=MODEL_ID,
             contentType="application/json",
@@ -374,15 +418,22 @@ Here is the user's current question or topic:
                 "messages": messages
             }),
         )
+        
         body = response.get("body")
         if hasattr(body, "read"):
             body = body.read()
         response_body = json.loads(body)
-        recommendation = response_body["content"][0]["text"]
-        print("++++ Direct Sonnet invoke succeeded ++++")
-        # Save new user input and answer in memory
-        memory.save_context({"input": career_goal}, {"output": recommendation})
-        return recommendation
+        final_response = response_body["content"][0]["text"]
+        
+        # Add KB citations if available
+        if kb_citations:
+            final_response += "\n\nKnowledge Base Sources:\n" + "\n".join(f"- {u}" for u in kb_citations)
+        
+        print("++++ Direct LLM invoke succeeded ++++")
+        # Save context
+        memory.save_context({"input": career_goal}, {"output": final_response})
+        return final_response
+        
     except ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
@@ -393,9 +444,11 @@ Here is the user's current question or topic:
             print("Invalid request parameters. Check model ID and request format.")
         else:
             print(f"AWS Bedrock error: {error_code}")
+        return f"Error: {error_code} - {error_message}"
     except Exception as e:
-        print(f"Unexpected error: {str(e)}")
-    return ""
+        error_msg = f"Unexpected error: {str(e)}"
+        print(error_msg)
+        return error_msg
 
 
 def check_aws_credentials():
